@@ -87,7 +87,7 @@ function CircularProgress({
             },
           ]}
         >
-          {Math.round(safePercentage)}%
+          {safePercentage.toFixed(2)}%
         </Text>
 
         <Text style={styles.progressLabel}>{label}</Text>
@@ -305,7 +305,7 @@ export function HomeScreen({ attendance, lastFetched }: Props) {
             {/* Highest */}
             <View style={styles.summaryStat}>
               <Text style={styles.summaryValue}>
-                {Math.round(highestPercentage)}%
+                {highestPercentage.toFixed(2)}%
               </Text>
 
               <Text style={styles.summaryLabel}>Highest</Text>
