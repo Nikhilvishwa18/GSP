@@ -8,6 +8,7 @@ import { formatBranchShort, formatRelativeTime } from "../utils/formatters";
 
 import { useTheme } from "../theme/ThemeContext";
 import type { AppTheme } from "../theme/theme";
+import { at } from "../../eslint.config";
 
 interface Props {
   attendance: AttendanceData;
@@ -108,20 +109,10 @@ export function HomeScreen({ attendance, lastFetched }: Props) {
     (subject) => subject.type === "PRACTICAL/LAB",
   );
 
-  const calculateAverage = (subjects: AttendanceData["subjects"]) => {
-    if (subjects.length === 0) {
-      return 0;
-    }
 
-    return (
-      subjects.reduce((total, subject) => total + subject.percentage, 0) /
-      subjects.length
-    );
-  };
-
-  const theoryPercentage = calculateAverage(theorySubjects);
-  const labPercentage = calculateAverage(labSubjects);
-  const overallPercentage = calculateAverage(attendance.subjects);
+  const theoryPercentage = attendance.summary.theory
+  const labPercentage = attendance.summary.lab
+  const overallPercentage = attendance.summary.overall
 
   const goodSubjects = attendance.subjects.filter(
     (subject) => subject.percentage >= 75,
