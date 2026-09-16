@@ -1,6 +1,6 @@
 {
   "name": "gsp",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "main": "index.ts",
   "dependencies": {
     "@expo-google-fonts/plus-jakarta-sans": "^0.4.2",
