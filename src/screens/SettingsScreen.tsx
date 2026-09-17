@@ -1,20 +1,21 @@
 import {
-  Animated,
-  Easing,
   Linking,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import { useTheme } from "../theme/ThemeContext";
 import type { AppTheme } from "../theme/theme";
+import { useAttendanceGoal } from "../theme/AttendanceGoalContext";
+import { Separator } from "../components/ui/Separator";
 
 import * as Application from "expo-application";
 
@@ -22,71 +23,54 @@ interface Props {
   onLogout: () => Promise<void>;
 }
 
-type Dialog = "about" | "author" | "logout" | "support";
+const GOAL_MIN = 50;
+const GOAL_MAX = 95;
+const GOAL_STEP = 5;
 
 export function SettingsScreen({ onLogout }: Props) {
-  const { theme, mode, setMode } = useTheme();
+  const { mode, setMode, theme } = useTheme();
+  const { goal, setGoal } = useAttendanceGoal();
   const styles = createStyles(theme);
-  const [themeNotice, setThemeNotice] = useState<"light" | "dark" | null>(null);
-  const [dialog, setDialog] = useState<Dialog | null>(null);
-  const noticeOpacity = useRef(new Animated.Value(0)).current;
-  const noticeTranslateY = useRef(new Animated.Value(12)).current;
+  const [showGoalSheet, setShowGoalSheet] = useState(false);
+  const [showLogoutSheet, setShowLogoutSheet] = useState(false);
+  const trackRef = useRef<View>(null);
+  const [trackWidth, setTrackWidth] = useState(0);
 
-  useEffect(() => {
-    if (!themeNotice) {
-      return;
+  const steps = [];
+  for (let v = GOAL_MIN; v <= GOAL_MAX; v += GOAL_STEP) steps.push(v);
+
+  const goalToPosition = (v: number) => {
+    if (trackWidth === 0) return 0;
+    return ((v - GOAL_MIN) / (GOAL_MAX - GOAL_MIN)) * trackWidth;
+  };
+
+  const positionToGoal = (x: number) => {
+    if (trackWidth === 0) return goal;
+    const ratio = Math.max(0, Math.min(1, x / trackWidth));
+    const raw = GOAL_MIN + ratio * (GOAL_MAX - GOAL_MIN);
+    const snapped = Math.round(raw / GOAL_STEP) * GOAL_STEP;
+    return Math.max(GOAL_MIN, Math.min(GOAL_MAX, snapped));
+  };
+
+  const handleTrackPress = (evt: any) => {
+    const { locationX } = evt.nativeEvent;
+    const newGoal = positionToGoal(locationX);
+    if (newGoal !== goal) {
+      setGoal(newGoal);
     }
+  };
 
-    noticeOpacity.setValue(0);
-    noticeTranslateY.setValue(12);
+  const openLink = (url: string) => {
+    void Linking.openURL(url).catch(() => {});
+  };
 
-    Animated.parallel([
-      Animated.timing(noticeOpacity, {
-        toValue: 1,
-        duration: 180,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-      Animated.timing(noticeTranslateY, {
-        toValue: 0,
-        duration: 180,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-    ]).start();
+  const handleLogout = () => {
+    setShowLogoutSheet(true);
+  };
 
-    const timeout = setTimeout(() => {
-      Animated.parallel([
-        Animated.timing(noticeOpacity, {
-          toValue: 0,
-          duration: 160,
-          easing: Easing.in(Easing.cubic),
-          useNativeDriver: true,
-        }),
-        Animated.timing(noticeTranslateY, {
-          toValue: 8,
-          duration: 160,
-          easing: Easing.in(Easing.cubic),
-          useNativeDriver: true,
-        }),
-      ]).start(({ finished }) => {
-        if (finished) {
-          setThemeNotice(null);
-        }
-      });
-    }, 1700);
-
-    return () => {
-      clearTimeout(timeout);
-      noticeOpacity.stopAnimation();
-      noticeTranslateY.stopAnimation();
-    };
-  }, [themeNotice]);
-
-  const toggleTheme = () => {
-    const nextMode = mode === "light" ? "dark" : "light";
-    setMode(nextMode);
-    setThemeNotice(nextMode);
+  const confirmLogout = async () => {
+    setShowLogoutSheet(false);
+    await onLogout();
   };
 
   return (
@@ -95,515 +79,520 @@ export function SettingsScreen({ onLogout }: Props) {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.title}>Settings</Text>
-            <Text style={styles.subtitle}>Manage your app preferences</Text>
-          </View>
-          <View style={styles.iconContainer}>
-            <Ionicons
-              name="settings-outline"
-              size={20}
-              color={theme.colors.textSecondary}
-            />
+        <Text style={styles.title}>Settings</Text>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>APPEARANCE</Text>
+          <View style={styles.segmentedControl}>
+            <Pressable
+              style={[styles.segment, mode === "light" && styles.segmentActive]}
+              onPress={() => {
+                if (mode !== "light") {
+                  setMode("light");
+                }
+              }}
+            >
+              <Ionicons
+                name="sunny"
+                size={16}
+                color={mode === "light" ? theme.colors.accent : theme.colors.textTertiary}
+              />
+              <Text style={[styles.segmentText, mode === "light" && styles.segmentTextActive]}>
+                Light
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[styles.segment, mode === "dark" && styles.segmentActive]}
+              onPress={() => {
+                if (mode !== "dark") {
+                  setMode("dark");
+                }
+              }}
+            >
+              <Ionicons
+                name="moon"
+                size={16}
+                color={mode === "dark" ? theme.colors.accent : theme.colors.textTertiary}
+              />
+              <Text style={[styles.segmentText, mode === "dark" && styles.segmentTextActive]}>
+                Dark
+              </Text>
+            </Pressable>
           </View>
         </View>
 
-        <Section title="Appearance">
-          <Pressable style={styles.themeRow} onPress={toggleTheme}>
-            <View style={styles.rowIcon}>
-              <Ionicons
-                name={mode === "dark" ? "moon-outline" : "sunny-outline"}
-                size={19}
-                color={theme.colors.accent}
-              />
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>DATA</Text>
+          <View style={styles.group}>
+            <Pressable style={styles.row} onPress={() => setShowGoalSheet(true)}>
+              <View style={styles.rowIcon}>
+                <Ionicons name="flag-outline" size={18} color={theme.colors.accent} />
+              </View>
+              <Text style={styles.rowTitle}>Attendance Goal</Text>
+              <Text style={styles.rowValue}>{goal}%</Text>
+              <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+            </Pressable>
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>SUPPORT</Text>
+          <View style={styles.group}>
+            <Pressable style={styles.row} onPress={() => openLink("https://github.com/mahtab89")}>
+              <View style={styles.rowIcon}>
+                <Ionicons name="logo-github" size={18} color={theme.colors.accent} />
+              </View>
+              <Text style={styles.rowTitle}>GitHub</Text>
+              <Ionicons name="open-outline" size={16} color={theme.colors.textTertiary} />
+            </Pressable>
+            <Separator inset={52} />
+            <Pressable
+              style={styles.row}
+              onPress={() => openLink("mailto:mdmahtabyasin@gmail.com")}
+            >
+              <View style={styles.rowIcon}>
+                <Ionicons name="mail-outline" size={18} color={theme.colors.accent} />
+              </View>
+              <Text style={styles.rowTitle}>Contact Support</Text>
+              <Ionicons name="open-outline" size={16} color={theme.colors.textTertiary} />
+            </Pressable>
+            <Separator inset={52} />
+            <Pressable
+              style={styles.row}
+              onPress={() =>
+                openLink("upi://pay?pa=9608896428@sbi&pn=Mahtab%20Yasin&cu=INR")
+              }
+            >
+              <View style={styles.rowIcon}>
+                <Ionicons name="cafe-outline" size={18} color={theme.colors.accent} />
+              </View>
+              <Text style={styles.rowTitle}>Buy me a coffee</Text>
+              <Ionicons name="open-outline" size={16} color={theme.colors.textTertiary} />
+            </Pressable>
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>ABOUT</Text>
+          <View style={styles.group}>
+            <View style={styles.row}>
+              <View style={styles.rowIcon}>
+                <Ionicons name="information-circle-outline" size={18} color={theme.colors.accent} />
+              </View>
+              <Text style={styles.rowTitle}>Version</Text>
+              <Text style={styles.rowValue}>{Application.nativeApplicationVersion ?? "unknown"}</Text>
             </View>
-            <View style={styles.rowContent}>
-              <Text style={styles.rowTitle}>Theme</Text>
-              <Text style={styles.rowDetail}>
-                {mode === "light" ? "Light" : "Dark"}
-              </Text>
+            <Separator inset={52} />
+            <View style={styles.row}>
+              <View style={styles.rowIcon}>
+                <Ionicons name="person-circle-outline" size={18} color={theme.colors.accent} />
+              </View>
+              <Text style={styles.rowTitle}>Author</Text>
+              <Text style={styles.rowValue}>Mahtab Yasin</Text>
             </View>
-            <Ionicons
-              name="chevron-forward"
-              size={18}
-              color={theme.colors.textMuted}
-            />
-          </Pressable>
-        </Section>
+          </View>
+        </View>
 
-        <Section title="Help">
-          <SettingRow
-            icon="help-circle-outline"
-            title="Support"
-            detail="Help and contact options"
-            onPress={() => setDialog("support")}
-          />
-          <SettingRow
-            icon="information-circle-outline"
-            title="About GSP++"
-            detail={`Version ${Application.nativeApplicationVersion ?? "unknown"}`}
-            onPress={() => setDialog("about")}
-            last
-          />
-        </Section>
-
-        <Section title="Creator">
-          <SettingRow
-            icon="person-circle-outline"
-            title="Author"
-            detail="Mahtab Yasin"
-            onPress={() => setDialog("author")}
-            last
-          />
-        </Section>
-
-        <Section title="Account">
-          <SettingRow
-            icon="log-out-outline"
-            title="Log out"
-            detail="Remove this account from this device"
-            onPress={() => setDialog("logout")}
-            destructive
-            last
-          />
-        </Section>
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>ACCOUNT</Text>
+          <View style={styles.group}>
+            <Pressable style={styles.row} onPress={handleLogout}>
+              <View style={[styles.rowIcon, { backgroundColor: theme.colors.dangerMuted }]}>
+                <Ionicons name="log-out-outline" size={18} color={theme.colors.danger} />
+              </View>
+              <Text style={[styles.rowTitle, { color: theme.colors.danger }]}>Log Out</Text>
+            </Pressable>
+          </View>
+        </View>
       </ScrollView>
 
-      {themeNotice && (
-        <Animated.View
-          style={[
-            styles.themeNotice,
-            {
-              opacity: noticeOpacity,
-              transform: [{ translateY: noticeTranslateY }],
-            },
-          ]}
-          pointerEvents="none"
-        >
-          <Ionicons
-            name={themeNotice === "dark" ? "moon" : "sunny"}
-            size={17}
-            color={theme.colors.accent}
-          />
-          <Text style={styles.themeNoticeText}>
-            {themeNotice === "dark" ? "Dark" : "Light"} theme enabled
-          </Text>
-        </Animated.View>
-      )}
+      {/* Attendance Goal Bottom Sheet */}
+      <Modal visible={showGoalSheet} transparent animationType="fade" onRequestClose={() => setShowGoalSheet(false)}>
+        <View style={styles.sheetOverlay}>
+          <Pressable style={styles.sheetBackdrop} onPress={() => setShowGoalSheet(false)} />
+          <View style={styles.sheet}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetTitle}>Attendance Goal</Text>
+            <Text style={styles.sheetSubtitle}>
+              Set your target attendance percentage. Subjects below this will appear in alerts.
+            </Text>
+            <View style={styles.sliderContainer}>
+              <Text style={styles.sliderValue}>{goal}%</Text>
+              <View
+                ref={trackRef}
+                style={styles.sliderTrack}
+                onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}
+              >
+                <Pressable
+                  style={[styles.sliderTrackFill, { width: goalToPosition(goal) }]}
+                  onStartShouldSetResponder={() => false}
+                  pointerEvents="none"
+                />
+                {steps.map((v) => {
+                  const x = goalToPosition(v);
+                  const isMajor = v % 10 === 0;
+                  return (
+                    <View
+                      key={v}
+                      style={[
+                        styles.sliderTick,
+                        { left: x },
+                        isMajor ? styles.sliderTickMajor : styles.sliderTickMinor,
+                      ]}
+                    />
+                  );
+                })}
+                <View style={[styles.sliderThumb, { left: goalToPosition(goal) }]} />
+              </View>
+              <View style={styles.sliderLabels}>
+                <Text style={styles.sliderLabel}>{GOAL_MIN}%</Text>
+                <Text style={styles.sliderLabel}>{GOAL_MAX}%</Text>
+              </View>
+              <Pressable
+                style={styles.sliderTrackTouchable}
+                onLayout={(e) => {
+                  if (trackWidth === 0) setTrackWidth(e.nativeEvent.layout.width);
+                }}
+                onPress={handleTrackPress}
+              />
+            </View>
+            <Pressable style={styles.sheetClose} onPress={() => setShowGoalSheet(false)}>
+              <Text style={styles.sheetCloseText}>Done</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
 
-      {dialog && (
-        <SettingsDialog
-          dialog={dialog}
-          onClose={() => setDialog(null)}
-          onLogout={onLogout}
-        />
-      )}
+      {/* Logout Confirmation Bottom Sheet */}
+      <Modal visible={showLogoutSheet} transparent animationType="fade" onRequestClose={() => setShowLogoutSheet(false)}>
+        <View style={styles.sheetOverlay}>
+          <Pressable style={styles.sheetBackdrop} onPress={() => setShowLogoutSheet(false)} />
+          <View style={styles.sheet}>
+            <View style={styles.sheetHandle} />
+            <View style={[styles.sheetIcon, { backgroundColor: theme.colors.dangerMuted }]}>
+              <Ionicons name="log-out-outline" size={24} color={theme.colors.danger} />
+            </View>
+            <Text style={styles.sheetTitle}>Log Out?</Text>
+            <Text style={styles.sheetSubtitle}>
+              Your saved credentials and cached data will be removed from this device.
+            </Text>
+            <View style={styles.sheetActions}>
+              <Pressable style={styles.sheetCancel} onPress={() => setShowLogoutSheet(false)}>
+                <Text style={styles.sheetCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable style={styles.sheetConfirm} onPress={confirmLogout}>
+                <Text style={styles.sheetConfirmText}>Log Out</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
-function SettingsDialog({
-  dialog,
-  onClose,
-  onLogout,
-}: {
-  dialog: Dialog;
-  onClose: () => void;
-  onLogout: () => Promise<void>;
-}) {
-  const { theme } = useTheme();
-  const styles = createStyles(theme);
-  const openLink = (url: string) => {
-    void Linking.openURL(url).catch((error) => {
-      
-    });
-  };
-
-  const isLogout = dialog === "logout";
-  const title = {
-    about: "About GSP++",
-    author: "Made by Mahtab",
-    logout: "Log out?",
-    support: "Support GSP++",
-  }[dialog];
-
-  const description = {
-    about: "Student Attendance Portal\nVersion 1.0.0",
-    author: "Independent developer and creator of GSP++.",
-    logout:
-      "Your saved Roll No, password, and attendance data will be removed from this device.",
-    support:
-      "Enjoying GSP++? You can support its development or get in touch directly.",
-  }[dialog];
-
-  return (
-    <Modal transparent animationType="fade" visible onRequestClose={onClose}>
-      <View style={styles.dialogOverlay}>
-        <Pressable style={styles.dialogBackdrop} onPress={onClose} />
-        <View style={styles.dialogCard}>
-          <View style={[styles.dialogIcon, isLogout && styles.destructiveIcon]}>
-            <Ionicons
-              name={
-                isLogout
-                  ? "log-out-outline"
-                  : dialog === "author"
-                    ? "person-outline"
-                    : dialog === "support"
-                      ? "heart-outline"
-                      : "information-circle-outline"
-              }
-              size={24}
-              color={isLogout ? theme.colors.danger : theme.colors.accent}
-            />
-          </View>
-          <Text style={styles.dialogTitle}>{title}</Text>
-          <Text style={styles.dialogText}>{description}</Text>
-
-          {dialog === "author" && (
-            <View style={styles.dialogActions}>
-              <DialogAction
-                icon="logo-github"
-                label="GitHub"
-                onPress={() => openLink("https://github.com/mahtab89")}
-              />
-              <DialogAction
-                icon="logo-instagram"
-                label="Instagram"
-                onPress={() => openLink("https://instagram.com/_mahtab_yasin_")}
-              />
-              <DialogAction
-                icon="mail-outline"
-                label="Email"
-                onPress={() => openLink("mailto:mdmahtabyasin@gmail.com")}
-              />
-            </View>
-          )}
-
-          {dialog === "support" && (
-            <View style={styles.dialogActions}>
-              <DialogAction
-                icon="cafe-outline"
-                label="Buy me a coffee"
-                onPress={() =>
-                  openLink(
-                    "upi://pay?pa=9608896428@sbi&pn=Mahtab%20Yasin&cu=INR",
-                  )
-                }
-              />
-              <DialogAction
-                icon="mail-outline"
-                label="Email support"
-                onPress={() => openLink("mailto:mdmahtabyasin@gmail.com")}
-              />
-            </View>
-          )}
-
-          <View style={styles.dialogFooter}>
-            <Pressable style={styles.dialogButton} onPress={onClose}>
-              <Text style={styles.dialogButtonText}>
-                {isLogout ? "Cancel" : "Close"}
-              </Text>
-            </Pressable>
-            {isLogout && (
-              <Pressable
-                style={[styles.dialogButton, styles.logoutButton]}
-                onPress={() => void onLogout()}
-              >
-                <Text style={styles.logoutButtonText}>Log out</Text>
-              </Pressable>
-            )}
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
-function DialogAction({
-  icon,
-  label,
-  onPress,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  label: string;
-  onPress: () => void;
-}) {
-  const { theme } = useTheme();
-  const styles = createStyles(theme);
-  return (
-    <Pressable style={styles.dialogAction} onPress={onPress}>
-      <Ionicons name={icon} size={18} color={theme.colors.accent} />
-      <Text style={styles.dialogActionText}>{label}</Text>
-      <Ionicons name="open-outline" size={15} color={theme.colors.textMuted} />
-    </Pressable>
-  );
-}
-
-function Section({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  const { theme } = useTheme();
-  const styles = createStyles(theme);
-  return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      <View style={styles.group}>{children}</View>
-    </View>
-  );
-}
-
-function SettingRow({
-  icon,
-  title,
-  detail,
-  onPress,
-  destructive = false,
-  last = false,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  title: string;
-  detail: string;
-  onPress?: () => void;
-  destructive?: boolean;
-  last?: boolean;
-}) {
-  const { theme } = useTheme();
-  const styles = createStyles(theme);
-  const content = (
-    <>
-      <View style={[styles.rowIcon, destructive && styles.destructiveIcon]}>
-        <Ionicons
-          name={icon}
-          size={19}
-          color={destructive ? theme.colors.danger : theme.colors.accent}
-        />
-      </View>
-      <View style={styles.rowContent}>
-        <Text style={[styles.rowTitle, destructive && styles.destructiveText]}>
-          {title}
-        </Text>
-        <Text style={styles.rowDetail}>{detail}</Text>
-      </View>
-      {onPress && (
-        <Ionicons
-          name="chevron-forward"
-          size={18}
-          color={theme.colors.textMuted}
-        />
-      )}
-    </>
-  );
-
-  if (onPress) {
-    return (
-      <Pressable
-        style={[styles.row, !last && styles.rowBorder]}
-        onPress={onPress}
-      >
-        {content}
-      </Pressable>
-    );
-  }
-
-  return <View style={[styles.row, !last && styles.rowBorder]}>{content}</View>;
-}
-
 const createStyles = (theme: AppTheme) =>
   StyleSheet.create({
-    safeArea: { flex: 1, backgroundColor: theme.colors.background },
-    content: { padding: theme.spacing.xl, paddingBottom: theme.spacing.xxxl },
-    header: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      marginBottom: theme.spacing.xxl,
+    safeArea: {
+      flex: 1,
+      backgroundColor: theme.colors.background,
     },
+
+    content: {
+      padding: theme.spacing.xl,
+      paddingBottom: theme.spacing.xxxxxl,
+    },
+
     title: {
       fontFamily: theme.fonts.bold,
-      fontSize: 24,
-      letterSpacing: -0.5,
+      fontSize: 28,
+      lineHeight: 34,
+      letterSpacing: -0.3,
       color: theme.colors.text,
+      marginBottom: theme.spacing.xxl,
     },
-    subtitle: {
-      fontFamily: theme.fonts.medium,
-      fontSize: 12,
-      color: theme.colors.textSecondary,
-      marginTop: 4,
+
+    section: {
+      marginBottom: theme.spacing.xxl,
     },
-    iconContainer: {
-      width: 40,
-      height: 40,
-      borderRadius: 12,
+
+    sectionLabel: {
+      fontFamily: theme.fonts.semiBold,
+      fontSize: 11,
+      letterSpacing: 0.6,
+      color: theme.colors.textTertiary,
+      marginBottom: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.xs,
+    },
+
+    segmentedControl: {
+      flexDirection: "row",
+      backgroundColor: theme.colors.surfaceSunken,
+      borderRadius: theme.radius.sm,
+      padding: 2,
+    },
+
+    segment: {
+      flex: 1,
+      flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
+      gap: theme.spacing.sm,
+      paddingVertical: theme.spacing.sm + 2,
+      borderRadius: theme.radius.xs,
+    },
+
+    segmentActive: {
       backgroundColor: theme.colors.surface,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
+      shadowColor: theme.colors.black,
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.08,
+      shadowRadius: 2,
+      elevation: 2,
     },
-    section: { marginBottom: theme.spacing.xl },
-    sectionTitle: {
+
+    segmentText: {
+      fontFamily: theme.fonts.medium,
+      fontSize: 13,
+      color: theme.colors.textTertiary,
+    },
+
+    segmentTextActive: {
       fontFamily: theme.fonts.semiBold,
-      fontSize: 12,
-      color: theme.colors.textSecondary,
-      marginBottom: theme.spacing.sm,
-      marginLeft: theme.spacing.sm,
+      color: theme.colors.text,
     },
+
     group: {
       backgroundColor: theme.colors.surface,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      borderRadius: theme.radius.medium,
+      borderRadius: theme.radius.md,
+      overflow: "hidden",
     },
+
     row: {
-      minHeight: 72,
       flexDirection: "row",
       alignItems: "center",
-      paddingHorizontal: theme.spacing.lg,
-    },
-    themeRow: {
-      minHeight: 92,
-      flexDirection: "row",
-      alignItems: "center",
-      paddingHorizontal: theme.spacing.lg,
-    },
-    themeNotice: {
-      position: "absolute",
-      right: theme.spacing.xl,
-      bottom: theme.spacing.xl,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.sm,
-      backgroundColor: theme.colors.surface,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      borderRadius: theme.radius.medium,
+      minHeight: 48,
       paddingHorizontal: theme.spacing.lg,
       paddingVertical: theme.spacing.md,
-      elevation: 4,
-      shadowColor: theme.colors.black,
-      shadowOpacity: 0.14,
-      shadowOffset: { width: 0, height: 3 },
-      shadowRadius: 8,
     },
-    themeNoticeText: {
-      fontFamily: theme.fonts.semiBold,
-      fontSize: 12,
+
+    rowIcon: {
+      width: 32,
+      height: 32,
+      alignItems: "center",
+      justifyContent: "center",
+      borderRadius: theme.radius.sm,
+      backgroundColor: theme.colors.accentMuted,
+      marginRight: theme.spacing.md,
+    },
+
+    rowTitle: {
+      flex: 1,
+      fontFamily: theme.fonts.regular,
+      fontSize: 15,
       color: theme.colors.text,
     },
-    dialogOverlay: {
-      flex: 1,
-      justifyContent: "center",
-      padding: theme.spacing.xl,
+
+    rowValue: {
+      fontFamily: theme.fonts.medium,
+      fontSize: 14,
+      color: theme.colors.textSecondary,
     },
-    dialogBackdrop: {
+
+    sheetOverlay: {
+      flex: 1,
+      justifyContent: "flex-end",
+    },
+
+    sheetBackdrop: {
       position: "absolute",
       top: 0,
       right: 0,
       bottom: 0,
       left: 0,
-      backgroundColor: "rgba(0, 0, 0, 0.5)",
+      backgroundColor: "rgba(0, 0, 0, 0.4)",
     },
-    dialogCard: {
+
+    sheet: {
       backgroundColor: theme.colors.surface,
-      borderRadius: theme.radius.large,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
+      borderTopLeftRadius: theme.radius.xl,
+      borderTopRightRadius: theme.radius.xl,
       padding: theme.spacing.xl,
-      elevation: 8,
-      shadowColor: theme.colors.black,
-      shadowOpacity: 0.2,
-      shadowOffset: { width: 0, height: 8 },
-      shadowRadius: 20,
+      paddingBottom: theme.spacing.xxxl,
+      width: "100%",
     },
-    dialogIcon: {
+
+    sheetHandle: {
+      width: 36,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: theme.colors.border,
+      marginBottom: theme.spacing.lg,
+      alignSelf: "center",
+    },
+
+    sheetIcon: {
       width: 48,
       height: 48,
+      borderRadius: 14,
       alignItems: "center",
       justifyContent: "center",
-      borderRadius: 14,
-      backgroundColor: theme.colors.accentSoft,
-      marginBottom: theme.spacing.lg,
+      marginBottom: theme.spacing.md,
     },
-    dialogTitle: {
-      fontFamily: theme.fonts.bold,
-      fontSize: 20,
+
+    sheetTitle: {
+      fontFamily: theme.fonts.semiBold,
+      fontSize: 17,
       color: theme.colors.text,
+      marginBottom: theme.spacing.xs,
+      alignSelf: "center",
     },
-    dialogText: {
-      fontFamily: theme.fonts.medium,
+
+    sheetSubtitle: {
+      fontFamily: theme.fonts.regular,
       fontSize: 13,
-      lineHeight: 20,
+      lineHeight: 18,
       color: theme.colors.textSecondary,
+      textAlign: "center",
+      marginBottom: theme.spacing.xl,
+      alignSelf: "center",
+    },
+
+    sliderContainer: {
+      marginBottom: theme.spacing.xl,
+    },
+
+    sliderValue: {
+      fontFamily: theme.fonts.bold,
+      fontSize: 42,
+      color: theme.colors.text,
+      textAlign: "center",
+      marginBottom: theme.spacing.md,
+    },
+
+    sliderTrack: {
+      height: 52,
+      justifyContent: "center",
+    },
+
+    sliderTrackTouchable: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+    },
+
+    sliderTrackFill: {
+      position: "absolute",
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: theme.colors.accent,
+      top: 24,
+      left: 0,
+    },
+
+    sliderTick: {
+      position: "absolute",
+      width: 2,
+      borderRadius: 1,
+      top: 22,
+      marginLeft: -1,
+    },
+
+    sliderTickMinor: {
+      height: 8,
+      backgroundColor: theme.colors.border,
+    },
+
+    sliderTickMajor: {
+      height: 12,
+      backgroundColor: theme.colors.textTertiary,
+      top: 20,
+    },
+
+    sliderThumb: {
+      position: "absolute",
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      backgroundColor: theme.colors.accent,
+      top: 12,
+      marginLeft: -14,
+      borderWidth: 3,
+      borderColor: theme.colors.background,
+      ...Platform.select({
+        ios: {
+          shadowColor: theme.colors.text,
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.15,
+          shadowRadius: 6,
+        },
+        android: {
+          elevation: 4,
+        },
+      }),
+    },
+
+    sliderLabels: {
+      flexDirection: "row",
+      justifyContent: "space-between",
       marginTop: theme.spacing.sm,
     },
-    dialogActions: { gap: theme.spacing.sm, marginTop: theme.spacing.xl },
-    dialogAction: {
-      minHeight: 46,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.sm,
-      paddingHorizontal: theme.spacing.md,
-      backgroundColor: theme.colors.surfaceMuted,
-      borderRadius: theme.radius.small,
-    },
-    dialogActionText: {
-      flex: 1,
-      fontFamily: theme.fonts.semiBold,
-      fontSize: 13,
-      color: theme.colors.text,
-    },
-    dialogFooter: {
-      flexDirection: "row",
-      justifyContent: "flex-end",
-      gap: theme.spacing.sm,
-      marginTop: theme.spacing.xl,
-    },
-    dialogButton: {
-      minHeight: 40,
-      alignItems: "center",
-      justifyContent: "center",
-      paddingHorizontal: theme.spacing.lg,
-      borderRadius: theme.radius.small,
-      backgroundColor: theme.colors.surfaceMuted,
-    },
-    dialogButtonText: {
-      fontFamily: theme.fonts.semiBold,
-      fontSize: 13,
-      color: theme.colors.text,
-    },
-    logoutButton: { backgroundColor: theme.colors.danger },
-    logoutButtonText: {
-      fontFamily: theme.fonts.semiBold,
-      fontSize: 13,
-      color: theme.colors.white,
-    },
-    rowBorder: { borderBottomWidth: 1, borderBottomColor: theme.colors.border },
-    rowIcon: {
-      width: 36,
-      height: 36,
-      alignItems: "center",
-      justifyContent: "center",
-      borderRadius: 10,
-      backgroundColor: theme.colors.accentSoft,
-      marginRight: theme.spacing.md,
-    },
-    destructiveIcon: { backgroundColor: theme.colors.dangerSoft },
-    rowContent: { flex: 1 },
-    rowTitle: {
-      fontFamily: theme.fonts.semiBold,
-      fontSize: 14,
-      color: theme.colors.text,
-    },
-    destructiveText: { color: theme.colors.danger },
-    rowDetail: {
+
+    sliderLabel: {
       fontFamily: theme.fonts.medium,
       fontSize: 11,
+      color: theme.colors.textTertiary,
+    },
+
+    sheetClose: {
+      backgroundColor: theme.colors.accent,
+      borderRadius: theme.radius.sm,
+      paddingVertical: theme.spacing.sm + 2,
+      paddingHorizontal: theme.spacing.xxxxxl,
+      alignSelf: "center",
+    },
+
+    sheetCloseText: {
+      fontFamily: theme.fonts.semiBold,
+      fontSize: 15,
+      color: theme.colors.white,
+    },
+
+    sheetActions: {
+      flexDirection: "row",
+      gap: theme.spacing.sm,
+      width: "100%",
+    },
+
+    sheetCancel: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingVertical: theme.spacing.sm + 2,
+      borderRadius: theme.radius.sm,
+      backgroundColor: theme.colors.surfaceSunken,
+    },
+
+    sheetCancelText: {
+      fontFamily: theme.fonts.semiBold,
+      fontSize: 15,
       color: theme.colors.textSecondary,
-      marginTop: 3,
+    },
+
+    sheetConfirm: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingVertical: theme.spacing.sm + 2,
+      borderRadius: theme.radius.sm,
+      backgroundColor: theme.colors.danger,
+    },
+
+    sheetConfirmText: {
+      fontFamily: theme.fonts.semiBold,
+      fontSize: 15,
+      color: theme.colors.white,
     },
   });

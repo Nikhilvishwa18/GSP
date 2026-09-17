@@ -1,141 +1,43 @@
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import Svg, { Circle } from "react-native-svg";
 
 import type { AttendanceData } from "../models/attendance";
 import { formatBranchShort, formatRelativeTime } from "../utils/formatters";
-
 import { useTheme } from "../theme/ThemeContext";
 import type { AppTheme } from "../theme/theme";
-import { at } from "../../eslint.config";
+import { useAttendanceGoal } from "../theme/AttendanceGoalContext";
+import {
+  getStatusBadge,
+  computeTotalClasses,
+  getAlertSubjects,
+} from "../utils/attendanceUtils";
+
+import { ProgressBar } from "../components/ui/ProgressBar";
+import { Badge } from "../components/ui/Badge";
+import { Separator } from "../components/ui/Separator";
 
 interface Props {
   attendance: AttendanceData;
   lastFetched: number | null;
 }
 
-interface CircularProgressProps {
-  percentage: number;
-  size: number;
-  strokeWidth: number;
-  color: string;
-  backgroundColor: string;
-  label: string;
-}
-
-function CircularProgress({
-  percentage,
-  size,
-  strokeWidth,
-  color,
-  backgroundColor,
-  label,
-}: CircularProgressProps) {
-  const { theme } = useTheme();
-  const styles = createProgressStyles(theme);
-
-  const safePercentage = Math.min(Math.max(percentage, 0), 100);
-
-  const radius = (size - strokeWidth) / 2;
-  const circumference = 2 * Math.PI * radius;
-
-  const dashOffset = circumference - (safePercentage / 100) * circumference;
-
-  return (
-    <View
-      style={[
-        styles.progressContainer,
-        {
-          width: size,
-          height: size,
-        },
-      ]}
-    >
-      <Svg width={size} height={size} style={styles.progressSvg}>
-        {/* Background circle */}
-        <Circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          stroke={backgroundColor}
-          strokeWidth={strokeWidth}
-          fill="none"
-        />
-
-        {/* Progress circle */}
-        <Circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          stroke={color}
-          strokeWidth={strokeWidth}
-          fill="none"
-          strokeLinecap="round"
-          strokeDasharray={`${circumference} ${circumference}`}
-          strokeDashoffset={dashOffset}
-          transform={`rotate(-90 ${size / 2} ${size / 2})`}
-        />
-      </Svg>
-
-      <View style={styles.progressCenter}>
-        <Text
-          style={[
-            styles.progressValue,
-            {
-              fontSize: size >= 130 ? 28 : 17,
-              color,
-            },
-          ]}
-        >
-          {Math.round(safePercentage)}%
-        </Text>
-
-        <Text style={styles.progressLabel}>{label}</Text>
-      </View>
-    </View>
-  );
-}
-
 export function HomeScreen({ attendance, lastFetched }: Props) {
   const { theme } = useTheme();
+  const { goal } = useAttendanceGoal();
   const styles = createStyles(theme);
 
-  const theorySubjects = attendance.subjects.filter(
-    (subject) => subject.type === "THEORY",
-  );
+  const overallPercentage = attendance.summary.overall;
+  const status = getStatusBadge(overallPercentage, goal);
+  const classSummary = computeTotalClasses(attendance.subjects);
+  const alertSubjects = getAlertSubjects(attendance.subjects, goal);
 
-  const labSubjects = attendance.subjects.filter(
-    (subject) => subject.type === "PRACTICAL/LAB",
-  );
-
-
-  const theoryPercentage = attendance.summary.theory
-  const labPercentage = attendance.summary.lab
-  const overallPercentage = attendance.summary.overall
-
-  const goodSubjects = attendance.subjects.filter(
-    (subject) => subject.percentage >= 75,
+  const theoryCount = attendance.subjects.filter(
+    (s) => s.type === "THEORY",
   ).length;
-
-  const atRiskSubjects = attendance.subjects.filter(
-    (subject) => subject.percentage < 75,
+  const labCount = attendance.subjects.filter(
+    (s) => s.type === "PRACTICAL/LAB",
   ).length;
-
-  const highestPercentage =
-    attendance.subjects.length > 0
-      ? Math.max(...attendance.subjects.map((subject) => subject.percentage))
-      : 0;
-
-  const isGoodAttendance = overallPercentage >= 75;
-
-  const statusTitle = isGoodAttendance
-    ? "You're in good standing"
-    : "Attendance needs attention";
-
-  const statusText = isGoodAttendance
-    ? "Your overall attendance is above the 75% requirement."
-    : "Your overall attendance is below the 75% requirement.";
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
@@ -144,292 +46,161 @@ export function HomeScreen({ attendance, lastFetched }: Props) {
         contentContainerStyle={styles.content}
       >
         <View style={styles.header}>
-          <View>
-            <Text style={styles.greeting}>Dashboard</Text>
-
-            <Text style={styles.title}>
-              Welcome, {attendance.name.split(" ")[0]}
-            </Text>
-          </View>
-
-          <View style={styles.iconContainer}>
-            <Ionicons
-              name="home-outline"
-              size={20}
-              color={theme.colors.textSecondary}
-            />
-          </View>
+          <Text style={styles.greeting}>
+            Hello, {attendance.name.split(" ")[0]}
+          </Text>
+          <Text style={styles.subtitle}>
+            {formatBranchShort(attendance.branch)} · Sem {attendance.semester}
+          </Text>
         </View>
 
-        <View style={styles.studentInfo}>
-          <View style={styles.infoItem}>
-            <Text style={styles.infoLabel}>Roll No</Text>
-
-            <Text style={styles.infoValue}>{attendance.rollNo}</Text>
-          </View>
-
-          <View style={styles.infoDivider} />
-
-          <View style={styles.infoItem}>
-            <Text style={styles.infoLabel}>Semester</Text>
-
-            <Text style={styles.infoValue}>{attendance.semester}</Text>
-          </View>
-
-          <View style={styles.infoDivider} />
-
-          <View style={styles.infoItem}>
-            <Text style={styles.infoLabel}>Branch</Text>
-
-            <Text style={styles.infoValue}>
-              {formatBranchShort(attendance.branch)}
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.attendanceCard}>
-          <Text style={styles.cardTitle}>Attendance</Text>
-
-          <Text style={styles.cardSubtitle}>Current semester overview</Text>
-
-          <View style={styles.attendanceGraphs}>
-            {/* Theory */}
-            <View style={styles.smallGraph}>
-              <CircularProgress
-                percentage={theoryPercentage}
-                size={82}
-                strokeWidth={8}
-                color={theme.colors.accent}
-                backgroundColor={theme.colors.border}
-                label="Theory"
-              />
-
-              <Text style={styles.graphCount}>
-                {theorySubjects.length} subjects
-              </Text>
-            </View>
-
-            {/* Overall */}
-            <View style={styles.mainGraph}>
-              <CircularProgress
-                percentage={overallPercentage}
-                size={130}
-                strokeWidth={13}
-                color={
-                  overallPercentage >= 75
-                    ? theme.colors.success
-                    : theme.colors.warning
-                }
-                backgroundColor={theme.colors.border}
-                label="Overall"
-              />
-            </View>
-
-            {/* Lab */}
-            <View style={styles.smallGraph}>
-              <CircularProgress
-                percentage={labPercentage}
-                size={82}
-                strokeWidth={8}
-                color={theme.colors.accent}
-                backgroundColor={theme.colors.border}
-                label="Lab"
-              />
-
-              <Text style={styles.graphCount}>
-                {labSubjects.length} subjects
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.subjectSummary}>
-          <View style={styles.summaryHeader}>
+        {/* Hero: Overall Attendance */}
+        <View style={styles.heroSection}>
+          <View style={styles.heroTop}>
             <View>
-              <Text style={styles.sectionTitle}>Subject Overview</Text>
+              <Text style={styles.heroLabel}>OVERALL ATTENDANCE</Text>
+              <View style={styles.heroRow}>
+                <Text style={styles.heroValue}>
+                  {overallPercentage.toFixed(1)}
+                </Text>
+                <Text style={styles.heroPercent}>%</Text>
+              </View>
+            </View>
+            <Badge label={status.label} variant={status.variant} />
+          </View>
+          <ProgressBar
+            value={overallPercentage}
+            height={6}
+            color={theme.colors.accent}
+          />
+        </View>
 
-              <Text style={styles.sectionSubtitle}>
-                {attendance.subjects.length} subjects this semester
+        {/* Class Summary */}
+        <View style={styles.card}>
+          <Text style={styles.cardLabel}>CLASSES THIS SEMESTER</Text>
+          <View style={styles.classSummaryRow}>
+            <View style={styles.classNumber}>
+              <Text style={styles.classBig}>{classSummary.totalAttended}</Text>
+              <Text style={styles.classSmall}>
+                {" "}
+                / {classSummary.totalTaken}
               </Text>
             </View>
+            <Text style={styles.classSubtext}>classes attended</Text>
+          </View>
+          <ProgressBar
+            value={classSummary.percentage}
+            height={4}
+            color={theme.colors.accent}
+          />
+          <Text style={styles.classMeta}>
+            {classSummary.totalTaken - classSummary.totalAttended} classes
+            missed
+          </Text>
+        </View>
 
-            <View style={styles.summaryIcon}>
+        {/* Theory / Lab Quick Stats */}
+        <View style={styles.splitCard}>
+          <View style={styles.splitColumn}>
+            <Text style={styles.splitLabel}>Theory</Text>
+            <Text style={styles.splitValue}>
+              {attendance.summary.theory.toFixed(1)}%
+            </Text>
+            <ProgressBar
+              value={attendance.summary.theory}
+              height={3}
+              color={theme.colors.accent}
+            />
+            <Text style={styles.splitMeta}>{theoryCount} subjects</Text>
+          </View>
+          <View style={styles.splitDivider} />
+          <View style={styles.splitColumn}>
+            <Text style={styles.splitLabel}>Lab</Text>
+            <Text style={styles.splitValue}>
+              {attendance.summary.lab.toFixed(1)}%
+            </Text>
+            <ProgressBar
+              value={attendance.summary.lab}
+              height={3}
+              color={theme.colors.accent}
+            />
+            <Text style={styles.splitMeta}>{labCount} subjects</Text>
+          </View>
+        </View>
+
+        {/* Subject Alerts */}
+        {alertSubjects.length > 0 ? (
+          <View style={styles.alertsSection}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Needs Attention</Text>
+              <Text style={styles.sectionCount}>{alertSubjects.length}</Text>
+            </View>
+            <View style={styles.alertsList}>
+              {alertSubjects.map((subject, index) => (
+                <View key={`${subject.name}-${index}`}>
+                  <View style={styles.alertRow}>
+                    <View style={styles.alertIconContainer}>
+                      <Ionicons
+                        name={
+                          subject.type === "PRACTICAL/LAB"
+                            ? "flask-outline"
+                            : "book-outline"
+                        }
+                        size={15}
+                        color={theme.colors.textTertiary}
+                      />
+                    </View>
+                    <View style={styles.alertContent}>
+                      <Text style={styles.alertName} numberOfLines={1}>
+                        {subject.name}
+                      </Text>
+                      <Text style={styles.alertMeta}>
+                        {subject.percentage}% · {subject.classesAttended}/
+                        {subject.classesTaken} classes
+                      </Text>
+                    </View>
+                    <View style={styles.alertRight}>
+                      {subject.reachable ? (
+                        <Text style={styles.alertNeeded}>
+                          +{subject.classesNeeded} more
+                        </Text>
+                      ) : (
+                        <Text style={styles.alertUnreachable}>Critical</Text>
+                      )}
+                    </View>
+                  </View>
+                  {index < alertSubjects.length - 1 && <Separator inset={44} />}
+                </View>
+              ))}
+            </View>
+          </View>
+        ) : (
+          <View style={styles.allGoodCard}>
+            <View style={styles.allGoodIcon}>
               <Ionicons
-                name="book-outline"
-                size={18}
-                color={theme.colors.accent}
+                name="checkmark-circle"
+                size={22}
+                color={theme.colors.success}
               />
             </View>
-          </View>
-
-          <View style={styles.summaryStats}>
-            {/* Good */}
-            <View style={styles.summaryStat}>
-              <Text style={styles.summaryValue}>{goodSubjects}</Text>
-
-              <Text style={styles.summaryLabel}>Good</Text>
-            </View>
-
-            <View style={styles.summaryDivider} />
-
-            {/* At Risk */}
-            <View style={styles.summaryStat}>
-              <Text
-                style={[
-                  styles.summaryValue,
-                  {
-                    color:
-                      atRiskSubjects > 0
-                        ? theme.colors.warning
-                        : theme.colors.success,
-                  },
-                ]}
-              >
-                {atRiskSubjects}
+            <View>
+              <Text style={styles.allGoodTitle}>All subjects on track</Text>
+              <Text style={styles.allGoodMeta}>
+                Every subject is above {goal}% attendance
               </Text>
-
-              <Text style={styles.summaryLabel}>At Risk</Text>
             </View>
-
-            <View style={styles.summaryDivider} />
-
-            {/* Highest */}
-            <View style={styles.summaryStat}>
-              <Text style={styles.summaryValue}>
-                {Math.round(highestPercentage)}%
-              </Text>
-
-              <Text style={styles.summaryLabel}>Highest</Text>
-            </View>
-          </View>
-        </View>
-
-        <View
-          style={[
-            styles.statusCard,
-            {
-              backgroundColor: isGoodAttendance
-                ? theme.colors.successSoft + "20"
-                : theme.colors.warning + "15",
-              borderColor: isGoodAttendance
-                ? theme.colors.success + "30"
-                : theme.colors.warning + "30",
-            },
-          ]}
-        >
-          <View
-            style={[
-              styles.statusIcon,
-              {
-                backgroundColor: isGoodAttendance
-                  ? theme.colors.successSoft
-                  : theme.colors.warning + "20",
-              },
-            ]}
-          >
-            <Ionicons
-              name={isGoodAttendance ? "checkmark" : "alert-outline"}
-              size={20}
-              color={
-                isGoodAttendance ? theme.colors.success : theme.colors.warning
-              }
-            />
-          </View>
-
-          <View style={styles.statusContent}>
-            <Text style={styles.statusTitle}>{statusTitle}</Text>
-
-            <Text style={styles.statusText}>{statusText}</Text>
-          </View>
-        </View>
-
-        <View style={styles.quickInfo}>
-          <View style={styles.quickInfoItem}>
-            <Ionicons
-              name="book-outline"
-              size={17}
-              color={theme.colors.textSecondary}
-            />
-
-            <Text style={styles.quickInfoText}>
-              {theorySubjects.length} Theory
-            </Text>
-          </View>
-
-          <View style={styles.quickInfoDivider} />
-
-          <View style={styles.quickInfoItem}>
-            <Ionicons
-              name="flask-outline"
-              size={17}
-              color={theme.colors.textSecondary}
-            />
-
-            <Text style={styles.quickInfoText}>{labSubjects.length} Labs</Text>
-          </View>
-
-          <View style={styles.quickInfoDivider} />
-
-          <View style={styles.quickInfoItem}>
-            <Ionicons
-              name="school-outline"
-              size={17}
-              color={theme.colors.textSecondary}
-            />
-
-            <Text style={styles.quickInfoText}>
-              Semester {attendance.semester}
-            </Text>
-          </View>
-        </View>
-
-        {lastFetched && (
-          <View style={styles.lastFetched}>
-            <Text style={styles.lastFetchedText}>
-              Last fetched: {formatRelativeTime(new Date(lastFetched))}
-            </Text>
           </View>
         )}
 
+        {lastFetched && (
+          <Text style={styles.lastFetched}>
+            Updated {formatRelativeTime(new Date(lastFetched))}
+          </Text>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
 }
-
-const createProgressStyles = (theme: AppTheme) =>
-  StyleSheet.create({
-    progressContainer: {
-      alignItems: "center",
-      justifyContent: "center",
-    },
-
-    progressSvg: {
-      position: "absolute",
-      top: 0,
-      left: 0,
-    },
-
-    progressCenter: {
-      position: "absolute",
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-
-    progressValue: {
-      fontFamily: theme.fonts.bold,
-    },
-
-    progressLabel: {
-      fontFamily: theme.fonts.medium,
-      fontSize: 10,
-      color: theme.colors.textSecondary,
-      marginTop: 2,
-    },
-  });
 
 const createStyles = (theme: AppTheme) =>
   StyleSheet.create({
@@ -441,227 +212,276 @@ const createStyles = (theme: AppTheme) =>
     content: {
       paddingHorizontal: theme.spacing.xl,
       paddingTop: theme.spacing.lg,
-      paddingBottom: theme.spacing.xxxl,
+      paddingBottom: theme.spacing.xxxxxl,
     },
 
     header: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      marginBottom: theme.spacing.lg,
+      marginBottom: theme.spacing.xxl,
     },
 
     greeting: {
-      fontFamily: theme.fonts.medium,
-      fontSize: 12,
-      color: theme.colors.textSecondary,
-      marginBottom: 3,
-    },
-
-    title: {
       fontFamily: theme.fonts.bold,
-      fontSize: 21,
-      letterSpacing: -0.4,
+      fontSize: 28,
+      lineHeight: 34,
+      letterSpacing: -0.3,
       color: theme.colors.text,
     },
 
-    iconContainer: {
-      width: 40,
-      height: 40,
-      borderRadius: 12,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: theme.colors.surface,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
+    subtitle: {
+      fontFamily: theme.fonts.regular,
+      fontSize: 15,
+      color: theme.colors.textSecondary,
+      marginTop: theme.spacing.xxs,
     },
 
-    studentInfo: {
-      flexDirection: "row",
-      alignItems: "center",
-      padding: theme.spacing.lg,
+    heroSection: {
       backgroundColor: theme.colors.surface,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      borderRadius: theme.radius.medium,
+      borderRadius: theme.radius.lg,
+      padding: theme.spacing.xl,
       marginBottom: theme.spacing.lg,
     },
 
-    infoItem: {
-      flex: 1,
-      alignItems: "center",
+    heroTop: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      justifyContent: "space-between",
+      marginBottom: theme.spacing.md,
     },
 
-    infoLabel: {
-      fontFamily: theme.fonts.medium,
+    heroLabel: {
+      fontFamily: theme.fonts.semiBold,
       fontSize: 11,
+      letterSpacing: 0.6,
+      color: theme.colors.textTertiary,
+      marginBottom: theme.spacing.xs,
+    },
+
+    heroRow: {
+      flexDirection: "row",
+      alignItems: "baseline",
+    },
+
+    heroValue: {
+      fontFamily: theme.fonts.extraBold,
+      fontSize: 48,
+      lineHeight: 56,
+      letterSpacing: -1.5,
+      color: theme.colors.text,
+    },
+
+    heroPercent: {
+      fontFamily: theme.fonts.bold,
+      fontSize: 20,
+      color: theme.colors.textSecondary,
+      marginLeft: 2,
+    },
+
+    card: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: theme.radius.lg,
+      padding: theme.spacing.xl,
+      marginBottom: theme.spacing.lg,
+    },
+
+    cardLabel: {
+      fontFamily: theme.fonts.semiBold,
+      fontSize: 11,
+      letterSpacing: 0.6,
+      color: theme.colors.textTertiary,
+      marginBottom: theme.spacing.md,
+    },
+
+    classSummaryRow: {
+      flexDirection: "row",
+      alignItems: "baseline",
+      gap: theme.spacing.sm,
+      marginBottom: theme.spacing.md,
+    },
+
+    classNumber: {
+      flexDirection: "row",
+      alignItems: "baseline",
+    },
+
+    classBig: {
+      fontFamily: theme.fonts.extraBold,
+      fontSize: 32,
+      lineHeight: 38,
+      letterSpacing: -0.8,
+      color: theme.colors.text,
+    },
+
+    classSmall: {
+      fontFamily: theme.fonts.semiBold,
+      fontSize: 18,
+      color: theme.colors.textSecondary,
+    },
+
+    classSubtext: {
+      fontFamily: theme.fonts.medium,
+      fontSize: 12,
+      color: theme.colors.textTertiary,
+    },
+
+    classMeta: {
+      fontFamily: theme.fonts.medium,
+      fontSize: 12,
+      color: theme.colors.textTertiary,
+      marginTop: theme.spacing.sm,
+    },
+
+    splitCard: {
+      flexDirection: "row",
+      backgroundColor: theme.colors.surface,
+      borderRadius: theme.radius.lg,
+      padding: theme.spacing.xl,
+      marginBottom: theme.spacing.xxl,
+    },
+
+    splitColumn: {
+      flex: 1,
+    },
+
+    splitDivider: {
+      width: 1,
+      backgroundColor: theme.colors.border,
+      marginHorizontal: theme.spacing.xl,
+    },
+
+    splitLabel: {
+      fontFamily: theme.fonts.medium,
+      fontSize: 13,
       color: theme.colors.textSecondary,
       marginBottom: theme.spacing.xs,
     },
 
-    infoValue: {
-      fontFamily: theme.fonts.semiBold,
-      fontSize: 14,
+    splitValue: {
+      fontFamily: theme.fonts.bold,
+      fontSize: 20,
       color: theme.colors.text,
+      marginBottom: theme.spacing.sm,
     },
 
-    infoDivider: {
-      width: 1,
-      height: 30,
-      backgroundColor: theme.colors.border,
-    },
-
-    attendanceCard: {
-      backgroundColor: theme.colors.surface,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      borderRadius: theme.radius.medium,
-      padding: theme.spacing.lg,
-      marginBottom: theme.spacing.lg,
-    },
-
-    cardTitle: {
-      fontFamily: theme.fonts.semiBold,
-      fontSize: 15,
-      color: theme.colors.text,
-    },
-
-    cardSubtitle: {
+    splitMeta: {
       fontFamily: theme.fonts.medium,
       fontSize: 11,
-      color: theme.colors.textSecondary,
-      marginTop: 3,
+      color: theme.colors.textTertiary,
+      marginTop: theme.spacing.sm,
     },
 
-    attendanceGraphs: {
+    alertsSection: {
+      marginBottom: theme.spacing.xxl,
+    },
+
+    sectionHeader: {
       flexDirection: "row",
       alignItems: "center",
-      justifyContent: "space-between",
-      marginTop: theme.spacing.xl,
-      paddingHorizontal: theme.spacing.sm,
-    },
-
-    smallGraph: {
-      width: 78,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-
-    mainGraph: {
-      width: 130,
-      height: 130,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-
-    graphCount: {
-      fontFamily: theme.fonts.medium,
-      fontSize: 10,
-      color: theme.colors.textSecondary,
-      marginTop: theme.spacing.xs,
-    },
-
-    subjectSummary: {
-      backgroundColor: theme.colors.surface,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      borderRadius: theme.radius.medium,
-      padding: theme.spacing.lg,
-      marginBottom: theme.spacing.lg,
-    },
-
-    summaryHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      marginBottom: theme.spacing.lg,
+      gap: theme.spacing.sm,
+      marginBottom: theme.spacing.md,
     },
 
     sectionTitle: {
       fontFamily: theme.fonts.semiBold,
-      fontSize: 15,
+      fontSize: 17,
       color: theme.colors.text,
     },
 
-    sectionSubtitle: {
-      fontFamily: theme.fonts.medium,
-      fontSize: 11,
-      color: theme.colors.textSecondary,
-      marginTop: 3,
+    sectionCount: {
+      fontFamily: theme.fonts.semiBold,
+      fontSize: 12,
+      color: theme.colors.textTertiary,
+      backgroundColor: theme.colors.surfaceSunken,
+      paddingHorizontal: theme.spacing.sm,
+      paddingVertical: theme.spacing.xxs,
+      borderRadius: theme.radius.full,
+      overflow: "hidden",
     },
 
-    summaryIcon: {
-      width: 34,
-      height: 34,
-      borderRadius: 10,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: theme.colors.accent + "15",
+    alertsList: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: theme.radius.lg,
+      paddingHorizontal: theme.spacing.lg,
     },
 
-    summaryStats: {
+    alertRow: {
       flexDirection: "row",
       alignItems: "center",
+      paddingVertical: 12,
     },
 
-    summaryStat: {
-      flex: 1,
-      alignItems: "center",
-    },
-
-    summaryValue: {
-      fontFamily: theme.fonts.bold,
-      fontSize: 18,
-      color: theme.colors.text,
-    },
-
-    summaryLabel: {
-      fontFamily: theme.fonts.medium,
-      fontSize: 10,
-      color: theme.colors.textSecondary,
-      marginTop: 3,
-    },
-
-    summaryDivider: {
-      width: 1,
-      height: 30,
-      backgroundColor: theme.colors.border,
-    },
-
-    statusCard: {
-      flexDirection: "row",
-      alignItems: "center",
-      padding: theme.spacing.lg,
-      borderWidth: 1,
-      borderRadius: theme.radius.medium,
-      marginBottom: theme.spacing.lg,
-    },
-
-    statusIcon: {
-      width: 38,
-      height: 38,
-      borderRadius: 11,
+    alertIconContainer: {
+      width: 28,
+      height: 28,
+      borderRadius: 7,
       alignItems: "center",
       justifyContent: "center",
       marginRight: theme.spacing.md,
     },
 
-    statusContent: {
+    alertContent: {
       flex: 1,
+      minWidth: 0,
     },
 
-    statusTitle: {
+    alertName: {
       fontFamily: theme.fonts.semiBold,
       fontSize: 13,
       color: theme.colors.text,
-      marginBottom: 3,
     },
 
-    statusText: {
+    alertMeta: {
       fontFamily: theme.fonts.medium,
       fontSize: 11,
-      lineHeight: 16,
+      color: theme.colors.textTertiary,
+      marginTop: 2,
+    },
+
+    alertRight: {
+      marginLeft: theme.spacing.sm,
+    },
+
+    alertNeeded: {
+      fontFamily: theme.fonts.semiBold,
+      fontSize: 12,
+      color: theme.colors.accent,
+    },
+
+    alertUnreachable: {
+      fontFamily: theme.fonts.semiBold,
+      fontSize: 12,
+      color: theme.colors.danger,
+    },
+
+    allGoodCard: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: theme.colors.surface,
+      borderRadius: theme.radius.lg,
+      padding: theme.spacing.xl,
+      marginBottom: theme.spacing.xxl,
+      gap: theme.spacing.md,
+    },
+
+    allGoodIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: theme.colors.successMuted,
+    },
+
+    allGoodTitle: {
+      fontFamily: theme.fonts.semiBold,
+      fontSize: 14,
+      color: theme.colors.text,
+    },
+
+    allGoodMeta: {
+      fontFamily: theme.fonts.regular,
+      fontSize: 12,
       color: theme.colors.textSecondary,
+      marginTop: 2,
     },
 
     quickInfo: {
@@ -669,38 +489,33 @@ const createStyles = (theme: AppTheme) =>
       alignItems: "center",
       justifyContent: "center",
       paddingVertical: theme.spacing.md,
+      gap: theme.spacing.sm,
     },
 
     quickInfoItem: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 5,
+      gap: theme.spacing.xs,
     },
 
     quickInfoText: {
       fontFamily: theme.fonts.medium,
-      fontSize: 10,
-      color: theme.colors.textSecondary,
+      fontSize: 11,
+      color: theme.colors.textTertiary,
     },
 
     quickInfoDivider: {
-      width: 1,
-      height: 16,
+      width: 3,
+      height: 3,
+      borderRadius: 1.5,
       backgroundColor: theme.colors.border,
-      marginHorizontal: theme.spacing.md,
     },
 
     lastFetched: {
-      marginTop: theme.spacing.lg,
-      paddingTop: theme.spacing.md,
-      borderTopWidth: 1,
-      borderTopColor: theme.colors.border,
-      alignItems: "center",
-    },
-
-    lastFetchedText: {
       fontFamily: theme.fonts.medium,
-      fontSize: 10,
-      color: theme.colors.textSecondary,
+      fontSize: 11,
+      color: theme.colors.textTertiary,
+      textAlign: "center",
+      marginTop: theme.spacing.lg,
     },
   });

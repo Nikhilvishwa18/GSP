@@ -1,6 +1,9 @@
 import { StyleSheet, Text, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+
 import { ThemeProvider, useTheme } from "../theme/ThemeContext";
+import type { AppTheme } from "../theme/theme";
 
 function BlockedScreenContent() {
   const { theme } = useTheme();
@@ -10,15 +13,12 @@ function BlockedScreenContent() {
     <SafeAreaProvider>
       <View style={styles.container}>
         <View style={styles.iconContainer}>
-          <Text style={styles.iconText}>🚫</Text>
+          <Ionicons name="ban-outline" size={32} color={theme.colors.danger} />
         </View>
-
         <Text style={styles.title}>Access Restricted</Text>
-
         <Text style={styles.message}>
-          You are restricted by GSP++ admin to use this app, contact admin for help.
+          Your account has been restricted by the administrator. Contact admin for help.
         </Text>
-
         <Text style={styles.subMessage}>
           If you believe this is a mistake, please reach out to the administrator.
         </Text>
@@ -35,53 +35,44 @@ export function BlockedScreen() {
   );
 }
 
-const createStyles = (theme: ReturnType<typeof useTheme>["theme"]) =>
+const createStyles = (theme: AppTheme) =>
   StyleSheet.create({
     container: {
       flex: 1,
       alignItems: "center",
       justifyContent: "center",
-      paddingHorizontal: 32,
+      paddingHorizontal: theme.spacing.xxxl,
       backgroundColor: theme.colors.background,
     },
-
     iconContainer: {
-      width: 80,
-      height: 80,
-      borderRadius: 40,
+      width: 72,
+      height: 72,
+      borderRadius: 20,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: theme.colors.dangerSoft,
-      marginBottom: 24,
+      backgroundColor: theme.colors.dangerMuted,
+      marginBottom: theme.spacing.xxl,
     },
-
-    iconText: {
-      fontSize: 36,
-    },
-
     title: {
       fontFamily: theme.fonts.bold,
       fontSize: 22,
       color: theme.colors.text,
       textAlign: "center",
-      marginBottom: 12,
+      marginBottom: theme.spacing.md,
     },
-
     message: {
-      fontFamily: theme.fonts.medium,
+      fontFamily: theme.fonts.regular,
       fontSize: 15,
       lineHeight: 22,
       color: theme.colors.textSecondary,
       textAlign: "center",
-      marginBottom: 8,
+      marginBottom: theme.spacing.sm,
     },
-
     subMessage: {
       fontFamily: theme.fonts.regular,
       fontSize: 13,
-      lineHeight: 20,
-      color: theme.colors.textSecondary,
+      lineHeight: 18,
+      color: theme.colors.textTertiary,
       textAlign: "center",
-      opacity: 0.8,
     },
   });

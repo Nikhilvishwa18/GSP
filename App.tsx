@@ -5,6 +5,7 @@ import {
   Easing,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -42,6 +43,7 @@ import { BlockedScreen } from "./src/screens/BlockedScreen";
 import { BottomNav } from "./src/components/BottomNav";
 
 import { ThemeProvider, useTheme } from "./src/theme/ThemeContext";
+import { AttendanceGoalProvider } from "./src/theme/AttendanceGoalContext";
 import type { AppTheme } from "./src/theme/theme";
 
 type Tab = "home" | "attendance" | "profile" | "settings";
@@ -53,7 +55,9 @@ const CURRENT_SEMESTER_CACHE_EXPIRY_MS = 24 * 60 * 60 * 1000;
 export default function App() {
   return (
     <ThemeProvider>
-      <AppContent />
+      <AttendanceGoalProvider>
+        <AppContent />
+      </AttendanceGoalProvider>
     </ThemeProvider>
   );
 }
@@ -123,6 +127,7 @@ function AppContent() {
       if (attendance) {
         setAttendance(attendance);
         setAttendanceBySemester(allAttendance);
+        setLastFetched(Date.now());
       }
       setProfile(profile);
       setAppState("app");
@@ -390,6 +395,21 @@ function AppContent() {
           <Text style={styles.errorText}>
             Please try refreshing the Attendance tab.
           </Text>
+
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={() => {
+              if (credentials) {
+                setLoading(true);
+                fetchAttendanceData(credentials)
+                  .catch(() => {})
+                  .finally(() => setLoading(false));
+              }
+            }}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaProvider>
     );
@@ -458,46 +478,60 @@ const createStyles = (theme: AppTheme) =>
       fontFamily: theme.fonts.medium,
       fontSize: 13,
       color: theme.colors.textSecondary,
-      marginTop: 12,
+      marginTop: theme.spacing.md,
     },
 
     errorContainer: {
       flex: 1,
       alignItems: "center",
       justifyContent: "center",
-      paddingHorizontal: 32,
+      paddingHorizontal: theme.spacing.xxxl,
       backgroundColor: theme.colors.background,
     },
 
     errorIcon: {
-      width: 48,
-      height: 48,
+      width: 56,
+      height: 56,
       borderRadius: 16,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: theme.colors.dangerSoft,
-      marginBottom: 16,
+      backgroundColor: theme.colors.dangerMuted,
+      marginBottom: theme.spacing.lg,
     },
 
     errorIconText: {
       fontFamily: theme.fonts.bold,
-      fontSize: 20,
+      fontSize: 22,
       color: theme.colors.danger,
     },
 
     errorTitle: {
-      fontFamily: theme.fonts.bold,
-      fontSize: 19,
+      fontFamily: theme.fonts.semiBold,
+      fontSize: 17,
       color: theme.colors.text,
       textAlign: "center",
     },
 
     errorText: {
-      fontFamily: theme.fonts.medium,
+      fontFamily: theme.fonts.regular,
       fontSize: 13,
-      lineHeight: 20,
+      lineHeight: 18,
       color: theme.colors.textSecondary,
       textAlign: "center",
-      marginTop: 8,
+      marginTop: theme.spacing.sm,
+    },
+
+    retryButton: {
+      marginTop: theme.spacing.xl,
+      backgroundColor: theme.colors.accent,
+      borderRadius: theme.radius.sm,
+      paddingHorizontal: theme.spacing.xl,
+      paddingVertical: theme.spacing.sm + 2,
+    },
+
+    retryButtonText: {
+      fontFamily: theme.fonts.semiBold,
+      fontSize: 14,
+      color: theme.colors.white,
     },
   });

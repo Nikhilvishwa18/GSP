@@ -1,6 +1,7 @@
-import { StyleSheet, View } from "react-native";
+import { View } from "react-native";
 
 import type { SubjectAttendance } from "../models/attendance";
+import { useTheme } from "../theme/ThemeContext";
 import { AttendanceCard } from "./AttendanceCard";
 
 interface Props {
@@ -8,17 +9,23 @@ interface Props {
 }
 
 export function SubjectList({ subjects }: Props) {
+  const { theme } = useTheme();
+
   return (
-    <View style={styles.list}>
+    <View
+      style={{
+        backgroundColor: theme.colors.surface,
+        borderRadius: theme.radius.lg,
+        paddingHorizontal: theme.spacing.lg,
+      }}
+    >
       {subjects.map((subject, index) => (
-        <AttendanceCard key={`${subject.name}-${index}`} subject={subject} />
+        <AttendanceCard
+          key={`${subject.name}-${index}`}
+          subject={subject}
+          index={index}
+        />
       ))}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  list: {
-    gap: 10,
-  },
-});

@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
 
 import { darkTheme, lightTheme, type AppTheme } from "./theme";
 
@@ -26,8 +26,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         if (storedMode === "light" || storedMode === "dark") {
           setCurrentMode(storedMode);
         }
-      } catch (error) {
-        
+      } catch {
+        // ignore
       } finally {
         setHydrated(true);
       }
@@ -36,12 +36,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     void hydrate();
   }, []);
 
-  const setMode = (nextMode: ThemeMode) => {
+  const setMode = useCallback((nextMode: ThemeMode) => {
     setCurrentMode(nextMode);
-    void AsyncStorage.setItem(THEME_MODE_KEY, nextMode).catch((error) => {
-      
+    void AsyncStorage.setItem(THEME_MODE_KEY, nextMode).catch(() => {
+      // ignore
     });
-  };
+  }, []);
 
   if (!hydrated) {
     return null;
